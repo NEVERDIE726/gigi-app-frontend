@@ -23,3 +23,12 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+
+# 環境變數（重要！）
+.env
+.env.local
+.env.*.local
+
+# API Keys
+*.key
+*.pem
