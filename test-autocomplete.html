@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Places Autocomplete 測試</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+        }
+        h1 {
+            color: #333;
+            margin-top: 0;
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+        .status.loading {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        label {
+            display: block;
+            margin: 20px 0 8px;
+            color: #666;
+            font-weight: 600;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            outline: none;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+        input[type="text"]:focus {
+            border-color: #764ba2;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .result h3 {
+            margin-top: 0;
+            color: #667eea;
+        }
+        .result pre {
+            background: #fff;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .info {
+            margin-top: 30px;
+            padding: 15px;
+            background: #e7f3ff;
+            border-radius: 8px;
+            border-left: 4px solid #2196F3;
+        }
+        .info h3 {
+            margin-top: 0;
+            color: #1976D2;
+        }
+        .info ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .info li {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗺️ Google Places Autocomplete 測試</h1>
+
+        <div id="status" class="status loading">
+            正在載入 Google Maps API...
+        </div>
+
+        <div id="diagnostics"></div>
+
+        <label for="autocomplete">🔍 測試地點輸入：</label>
+        <input
+            id="autocomplete"
+            type="text"
+            placeholder="輸入地點，例如：台北車站"
+            disabled
+        />
+
+        <div id="result"></div>
+
+        <div class="info">
+            <h3>📋 測試步驟</h3>
+            <ul>
+                <li>✅ 等待「載入成功」訊息出現</li>
+                <li>✅ 在輸入框輸入「台北」或「台北車站」</li>
+                <li>✅ 應該會看到下拉選單出現建議</li>
+                <li>✅ 選擇一個地點</li>
+                <li>✅ 下方會顯示完整的地點資訊</li>
+            </ul>
+
+            <h3>🐛 如果沒有下拉選單出現</h3>
+            <ul>
+                <li>1. 按 F12 開啟開發者工具</li>
+                <li>2. 查看 Console 標籤是否有錯誤訊息</li>
+                <li>3. 查看 Network 標籤確認 API 請求狀態</li>
+                <li>4. 參考 troubleshooting.md 檔案</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const API_KEY = 'AIzaSyCmbZpIvUtwXIg1PeF_o2ygd3PU97gtM6k';
+
+        // 載入 Google Maps API
+        function loadGoogleMaps() {
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&libraries=places&callback=initAutocomplete`;
+            script.async = true;
+            script.defer = true;
+            script.onerror = () => {
+                updateStatus('error', '❌ Google Maps API 載入失敗！請檢查網路連線。');
+            };
+            document.head.appendChild(script);
+        }
+
+        // 更新狀態訊息
+        function updateStatus(type, message) {
+            const statusEl = document.getElementById('status');
+            statusEl.className = `status ${type}`;
+            statusEl.textContent = message;
+        }
+
+        // 顯示診斷資訊
+        function showDiagnostics() {
+            const diagnosticsEl = document.getElementById('diagnostics');
+            const info = {
+                'Google Maps 已載入': !!window.google,
+                'Places API 已載入': !!window.google?.maps?.places,
+                'API Key': API_KEY.substring(0, 10) + '...',
+                '瀏覽器': navigator.userAgent.split(' ').pop(),
+            };
+
+            let html = '<div class="result"><h3>🔍 診斷資訊</h3><ul>';
+            for (const [key, value] of Object.entries(info)) {
+                const icon = value === true ? '✅' : value === false ? '❌' : '📝';
+                html += `<li>${icon} ${key}: <strong>${value}</strong></li>`;
+            }
+            html += '</ul></div>';
+            diagnosticsEl.innerHTML = html;
+        }
+
+        // 初始化 Autocomplete
+        window.initAutocomplete = function() {
+            try {
+                updateStatus('success', '✅ Google Maps API 載入成功！');
+                showDiagnostics();
+
+                const input = document.getElementById('autocomplete');
+                input.disabled = false;
+
+                // 建立 Autocomplete
+                const autocomplete = new google.maps.places.Autocomplete(input, {
+                    componentRestrictions: { country: 'tw' },
+                    fields: ['formatted_address', 'geometry', 'name', 'place_id', 'address_components'],
+                });
+
+                // 監聽地點選擇
+                autocomplete.addListener('place_changed', () => {
+                    const place = autocomplete.getPlace();
+
+                    if (!place.geometry) {
+                        updateStatus('error', '❌ 沒有找到地點的座標資訊');
+                        return;
+                    }
+
+                    // 顯示結果
+                    const resultEl = document.getElementById('result');
+                    const placeInfo = {
+                        名稱: place.name,
+                        地址: place.formatted_address,
+                        PlaceID: place.place_id,
+                        經度: place.geometry.location.lng(),
+                        緯度: place.geometry.location.lat(),
+                    };
+
+                    let html = '<div class="result"><h3>✅ 地點資訊</h3>';
+                    html += '<ul>';
+                    for (const [key, value] of Object.entries(placeInfo)) {
+                        html += `<li><strong>${key}:</strong> ${value}</li>`;
+                    }
+                    html += '</ul>';
+                    html += '<h4>完整物件（JSON）：</h4>';
+                    html += `<pre>${JSON.stringify(place, null, 2)}</pre>`;
+                    html += '</div>';
+
+                    resultEl.innerHTML = html;
+
+                    updateStatus('success', '✅ 成功選擇地點！請查看下方的詳細資訊。');
+                });
+
+                console.log('✅ Autocomplete 初始化成功');
+
+            } catch (error) {
+                updateStatus('error', `❌ 初始化失敗：${error.message}`);
+                console.error('Autocomplete 初始化錯誤：', error);
+            }
+        };
+
+        // 開始載入
+        loadGoogleMaps();
+    </script>
+</body>
+</html>
