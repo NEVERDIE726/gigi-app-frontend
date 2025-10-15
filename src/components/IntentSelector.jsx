@@ -124,9 +124,11 @@ const IntentSelector = ({ onSelectIntent, onBack }) => {
         </div>
       </button>
 
-      <button style={styles.backButton} onClick={onBack}>
-        ← 返回上一步
-      </button>
+      {onBack && (
+        <button style={styles.backButton} onClick={onBack}>
+          ← 返回上一步
+        </button>
+      )}
     </div>
   );
 };

@@ -138,7 +138,9 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [currentPage, setCurrentPage] = useState('input'); // 'input', 'intent', 'where'
+  
+  // 修正：頁面流程改為 why → who → where
+  const [currentPage, setCurrentPage] = useState('why'); // 'why', 'who', 'where'
   const [selectedIntent, setSelectedIntent] = useState('');
   const [participants, setParticipants] = useState([
     { 
@@ -234,18 +236,7 @@ function App() {
     }
   };
 
-  const handleCalculate = () => {
-    const filledLocations = participants.filter(p => p.placeData && p.placeData.location);
-    
-    if (filledLocations.length < 2) {
-      alert('請至少輸入 2 個參與者的完整位置資訊 (需從建議中選擇)！');
-      return;
-    }
-
-    console.log('參與者資料：', participants);
-    setCurrentPage('intent');
-  };
-
+  // Step 1: Why - 選擇意圖後，進入 Who 頁面
   const handleIntentSelect = (intent) => {
     console.log('選擇的意圖是:', intent);
     setSelectedIntent(intent);
@@ -254,9 +245,26 @@ function App() {
       alert('提示：「吃喝玩樂」的詳細選項將在下個版本實作！\n目前先直接進入下一步。');
     }
     
+    // 進入 Who 頁面
+    setCurrentPage('who');
+  };
+
+  // Step 2: Who - 輸入參與者後，進入 Where 頁面
+  const handleWhoNext = () => {
+    const filledLocations = participants.filter(p => p.placeData && p.placeData.location);
+    
+    if (filledLocations.length < 2) {
+      alert('請至少輸入 2 個參與者的完整位置資訊 (需從建議中選擇)！');
+      return;
+    }
+
+    console.log('參與者資料：', participants);
+    
+    // 進入 Where 頁面
     setCurrentPage('where');
   };
 
+  // Step 3: Where - 最終計算
   const handleFinalCalculate = (whereData) => {
     console.log('最終資料：', {
       participants,
@@ -265,6 +273,7 @@ function App() {
     });
 
     let message = '🎉 收集完成！準備計算中間點！\n\n';
+    message += `🎯 目的：${selectedIntent}\n\n`;
     message += `📍 參與者：\n`;
     participants
       .filter(p => p.placeData)
@@ -272,10 +281,8 @@ function App() {
         message += `  • ${p.name}: ${p.location} (${p.transportMode})\n`;
       });
     
-    message += `\n🎯 目的：${selectedIntent}\n`;
-    
     if (whereData.hasDestination) {
-      message += `📍 目的地：${whereData.destination}\n`;
+      message += `\n📍 目的地：${whereData.destination}\n`;
       message += `\n💡 系統將計算每個人到目的地的交通時間`;
     } else {
       message += `\n💡 系統將推薦最公平的會合點`;
@@ -330,16 +337,25 @@ function App() {
       <div style={styles.header}>
         <h1 style={styles.title}>✨ 嗨，{userName}！</h1>
         <p style={styles.subtitle}>
-          {currentPage === 'input' 
-            ? '輸入大家的位置，找出最佳會合點！'
-            : currentPage === 'intent'
+          {currentPage === 'why' 
             ? '選擇這次聚會的目的'
+            : currentPage === 'who'
+            ? '輸入大家的位置，找出最佳會合點！'
             : '決定目的地'
           }
         </p>
       </div>
 
-      {currentPage === 'input' && (
+      {/* 步驟 1：Why - 選擇意圖 */}
+      {currentPage === 'why' && (
+        <IntentSelector 
+          onSelectIntent={handleIntentSelect}
+          onBack={null} // 第一步沒有返回
+        />
+      )}
+
+      {/* 步驟 2：Who - 輸入參與者 */}
+      {currentPage === 'who' && (
         <div style={styles.card}>
           <div style={styles.sectionTitle}>
             📍 誰要參加？
@@ -394,26 +410,49 @@ function App() {
             + 新增更多人
           </button>
 
-          <button 
-            style={styles.calculateButton}
-            onClick={handleCalculate}
-          >
-            下一步 →
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button 
+              style={{
+                flex: 1,
+                padding: '15px',
+                background: 'transparent',
+                border: '2px solid #667eea',
+                borderRadius: '12px',
+                color: '#667eea',
+                fontSize: '16px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              onClick={() => setCurrentPage('why')}
+              onMouseEnter={(e) => {
+                e.target.style.background = '#f0f4ff';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = 'transparent';
+              }}
+            >
+              ← 上一步
+            </button>
+
+            <button 
+              style={{
+                flex: 2,
+                ...styles.calculateButton,
+              }}
+              onClick={handleWhoNext}
+            >
+              下一步 →
+            </button>
+          </div>
         </div>
       )}
 
-      {currentPage === 'intent' && (
-        <IntentSelector 
-          onSelectIntent={handleIntentSelect}
-          onBack={() => setCurrentPage('input')}
-        />
-      )}
-
+      {/* 步驟 3：Where - 選擇目的地 */}
       {currentPage === 'where' && (
         <WhereSelector 
           selectedIntent={selectedIntent}
-          onBack={() => setCurrentPage('intent')}
+          onBack={() => setCurrentPage('who')}
           onCalculate={handleFinalCalculate}
         />
       )}
