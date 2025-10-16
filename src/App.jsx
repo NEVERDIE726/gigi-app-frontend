@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useGoogleMaps } from './components/GoogleMapsLoader';
-import PlaceAutocomplete from './components/PlaceAutocomplete';
 import IntentSelector from './components/IntentSelector';
 import WhereSelector from './components/WhereSelector';
+import ParticipantInput from './components/ParticipantInput';
 
-// --- 樣式 ---
 const styles = {
   container: {
     minHeight: '100vh',
@@ -60,30 +59,6 @@ const styles = {
     alignItems: 'center',
     gap: '10px',
   },
-  friendItem: {
-    marginBottom: '20px',
-    padding: '15px',
-    background: '#f8f9fa',
-    borderRadius: '12px',
-  },
-  friendLabel: {
-    fontSize: '14px',
-    color: '#666',
-    marginBottom: '8px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-  },
-  input: {
-    width: '100%',
-    padding: '12px',
-    fontSize: '16px',
-    border: '2px solid #e0e0e0',
-    borderRadius: '8px',
-    outline: 'none',
-    transition: 'border-color 0.3s',
-    boxSizing: 'border-box',
-  },
   addButton: {
     width: '100%',
     padding: '12px',
@@ -109,16 +84,6 @@ const styles = {
     boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
     transition: 'transform 0.2s',
   },
-  removeButton: {
-    padding: '4px 8px',
-    background: '#ff4757',
-    border: 'none',
-    borderRadius: '4px',
-    color: 'white',
-    fontSize: '12px',
-    cursor: 'pointer',
-    marginLeft: '10px',
-  },
   loadingContainer: {
     display: 'flex',
     alignItems: 'center',
@@ -138,9 +103,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  
-  // 修正：頁面流程改為 why → who → where
-  const [currentPage, setCurrentPage] = useState('why'); // 'why', 'who', 'where'
+  const [currentPage, setCurrentPage] = useState('why');
   const [selectedIntent, setSelectedIntent] = useState('');
   const [participants, setParticipants] = useState([
     { 
@@ -150,14 +113,14 @@ function App() {
       placeData: null,
       transportMode: '開車' 
     },
-    { 
-      id: 2, 
-      name: '參與者 1', 
-      location: '', 
-      placeData: null,
-      transportMode: '捷運' 
-    },
-  ]);
+ { 
+    id: 2, 
+    name: '參與者 1', 
+    location: '', 
+    placeData: null,
+    transportMode: '大眾運輸'  //
+  },
+]);
 
   const { isLoaded: mapsLoaded, loadError: mapsError } = useGoogleMaps();
 
@@ -195,48 +158,31 @@ function App() {
     }
   };
 
-  const handleInputChange = (id, value) => {
-    setParticipants(participants.map(p =>
-      p.id === id ? { ...p, location: value, placeData: null } : p
-    ));
-  };
+  const handleParticipantChange = useCallback((updatedParticipant) => {
+    setParticipants(prevParticipants =>
+      prevParticipants.map(p =>
+        p.id === updatedParticipant.id ? updatedParticipant : p
+      )
+    );
+  }, []);
 
-  const handlePlaceSelect = (id, placeData) => {
-    setParticipants(participants.map(p =>
-      p.id === id
-        ? {
-            ...p,
-            location: placeData.address || placeData.name || '',
-            placeData: placeData,
-          }
-        : p
-    ));
-  };
+const addParticipant = () => {
+  const newId = participants.length > 0 ? Math.max(...participants.map(p => p.id)) + 1 : 1;
+  setParticipants([...participants, {
+    id: newId,
+    name: `參與者 ${participants.length}`,
+    location: '',
+    placeData: null,
+    transportMode: '大眾運輸'  // ✅ 改這裡
+  }]);
+};
+  const removeParticipant = useCallback((id) => {
+    setParticipants(prev => {
+      if (prev.length <= 2) return prev;
+      return prev.filter(p => p.id !== id);
+    });
+  }, []);
 
-  const handleTransportChange = (id, mode) => {
-    setParticipants(participants.map(p =>
-      p.id === id ? { ...p, transportMode: mode } : p
-    ));
-  };
-
-  const addParticipant = () => {
-    const newId = participants.length > 0 ? Math.max(...participants.map(p => p.id)) + 1 : 1;
-    setParticipants([...participants, {
-      id: newId,
-      name: `參與者 ${participants.length}`,
-      location: '',
-      placeData: null,
-      transportMode: '捷運'
-    }]);
-  };
-
-  const removeParticipant = (id) => {
-    if (participants.length > 2) {
-      setParticipants(participants.filter(p => p.id !== id));
-    }
-  };
-
-  // Step 1: Why - 選擇意圖後，進入 Who 頁面
   const handleIntentSelect = (intent) => {
     console.log('選擇的意圖是:', intent);
     setSelectedIntent(intent);
@@ -245,11 +191,9 @@ function App() {
       alert('提示：「吃喝玩樂」的詳細選項將在下個版本實作！\n目前先直接進入下一步。');
     }
     
-    // 進入 Who 頁面
     setCurrentPage('who');
   };
 
-  // Step 2: Who - 輸入參與者後，進入 Where 頁面
   const handleWhoNext = () => {
     const filledLocations = participants.filter(p => p.placeData && p.placeData.location);
     
@@ -259,12 +203,9 @@ function App() {
     }
 
     console.log('參與者資料：', participants);
-    
-    // 進入 Where 頁面
     setCurrentPage('where');
   };
 
-  // Step 3: Where - 最終計算
   const handleFinalCalculate = (whereData) => {
     console.log('最終資料：', {
       participants,
@@ -346,15 +287,13 @@ function App() {
         </p>
       </div>
 
-      {/* 步驟 1：Why - 選擇意圖 */}
       {currentPage === 'why' && (
         <IntentSelector 
           onSelectIntent={handleIntentSelect}
-          onBack={null} // 第一步沒有返回
+          onBack={null}
         />
       )}
 
-      {/* 步驟 2：Who - 輸入參與者 */}
       {currentPage === 'who' && (
         <div style={styles.card}>
           <div style={styles.sectionTitle}>
@@ -362,45 +301,13 @@ function App() {
           </div>
 
           {participants.map((participant) => (
-            <div key={participant.id} style={styles.friendItem}>
-              <div style={styles.friendLabel}>
-                👤 {participant.name}
-                {participants.length > 2 && participant.id !== 1 && (
-                  <button 
-                    style={styles.removeButton}
-                    onClick={() => removeParticipant(participant.id)}
-                  >
-                    移除
-                  </button>
-                )}
-              </div>
-              
-              <PlaceAutocomplete
-                value={participant.location}
-                onInputChange={(value) => handleInputChange(participant.id, value)}
-                onSelectPlace={(placeData) => handlePlaceSelect(participant.id, placeData)}
-                placeholder="例如：台北車站、信義區市政府..."
-                style={styles.input}
-              />
-
-              <div style={{ marginTop: '10px' }}>
-                <select
-                  value={participant.transportMode}
-                  onChange={(e) => handleTransportChange(participant.id, e.target.value)}
-                  style={{
-                    ...styles.input,
-                    marginTop: '8px',
-                  }}
-                >
-                  <option value="開車">🚗 開車</option>
-                  <option value="捷運">🚇 捷運</option>
-                  <option value="公車">🚌 公車</option>
-                  <option value="機車">🛵 機車</option>
-                  <option value="步行">🚶 步行</option>
-                  <option value="計程車">🚕 計程車/網約車</option>
-                </select>
-              </div>
-            </div>
+            <ParticipantInput
+              key={participant.id}
+              participant={participant}
+              onUpdate={handleParticipantChange}
+              onRemove={removeParticipant}
+              canRemove={participant.id !== 1 && participants.length > 2}
+            />
           ))}
 
           <button 
@@ -448,7 +355,6 @@ function App() {
         </div>
       )}
 
-      {/* 步驟 3：Where - 選擇目的地 */}
       {currentPage === 'where' && (
         <WhereSelector 
           selectedIntent={selectedIntent}

@@ -1,7 +1,8 @@
-// 這是 PlaceAutocomplete.jsx 的正確程式碼
+// src/components/PlaceAutocomplete.jsx
+
 import { useRef, useEffect } from 'react';
 
-const PlaceAutocomplete = ({ value, onSelectPlace, onInputChange, placeholder, style }) => {
+const PlaceAutocomplete = ({ value, onInputChange, onSelectPlace, placeholder, style }) => {
   const inputRef = useRef(null);
   const autocompleteRef = useRef(null);
 
