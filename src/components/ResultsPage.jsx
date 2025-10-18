@@ -1,7 +1,9 @@
 // src/components/ResultsPage.jsx
 
-import React, { useState } from 'react'; // 🔥 引入 useState
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import Slider from 'react-slick';
+import { getGathering, getCommonDates } from '../lib/gatheringApi';
 
 const styles = {
   cardContainer: {
@@ -101,8 +103,54 @@ const mockResults = [
 ];
 
 
-const ResultsPage = ({ onRestart }) => {
-  const [activeIndex, setActiveIndex] = useState(0); // 🔥 新增狀態，追蹤當前滑動索引
+const ResultsPage = ({ onRestart, userName }) => {
+  const params = useParams();
+  const navigate = useNavigate();
+  const shortId = params.shortId;
+
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [gathering, setGathering] = useState(null);
+  const [commonDates, setCommonDates] = useState([]);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (shortId) {
+      loadGatheringData();
+    } else {
+      // 如果沒有 shortId，表示是從建立流程來的
+      setLoading(false);
+    }
+  }, [shortId]);
+
+  const loadGatheringData = async () => {
+    setLoading(true);
+
+    const result = await getGathering(shortId);
+    if (result.success) {
+      setGathering(result.gathering);
+
+      // 如果是日期投票模式，取得共同日期
+      if (result.gathering.time_mode === 'date_selection') {
+        const datesResult = await getCommonDates(shortId);
+        if (datesResult.success) {
+          setCommonDates(datesResult.commonDates);
+        }
+      }
+    } else {
+      setError(result.error);
+    }
+
+    setLoading(false);
+  };
+
+  const handleRestart = () => {
+    if (onRestart) {
+      onRestart();
+    } else {
+      navigate('/');
+    }
+  };
 
   const settings = {
     dots: true,
@@ -142,12 +190,55 @@ const ResultsPage = ({ onRestart }) => {
     )
   };
 
-  const currentResult = mockResults[activeIndex]; // 🔥 根據 activeIndex 取得當前結果
+  if (loading) {
+    return (
+      <div style={styles.cardContainer}>
+        <div style={{ textAlign: 'center', padding: '40px' }}>載入中...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={styles.cardContainer}>
+        <div style={{ textAlign: 'center', padding: '40px', color: '#e74c3c' }}>
+          ❌ {error}
+        </div>
+      </div>
+    );
+  }
+
+  const currentResult = mockResults[activeIndex];
 
   return (
     <div style={styles.cardContainer}>
       <div style={styles.header}>
         <h2 style={styles.title}>🎯 推薦結果</h2>
+        {gathering && (
+          <p style={{ fontSize: '14px', color: '#666', margin: '5px 0' }}>
+            {gathering.intent} · {gathering.participants?.length || 0} 人參與
+          </p>
+        )}
+        {gathering && gathering.time_mode === 'date_selection' && (
+          <div style={{ marginTop: '15px', padding: '12px', background: '#f0f4ff', borderRadius: '8px' }}>
+            <div style={{ fontSize: '14px', fontWeight: '600', color: '#667eea', marginBottom: '8px' }}>
+              📅 共同可用日期
+            </div>
+            {commonDates.length > 0 ? (
+              <div style={{ fontSize: '14px', color: '#333' }}>
+                {commonDates.map(date => (
+                  <div key={date} style={{ padding: '4px 0' }}>
+                    ✓ {formatDate(date)}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontSize: '14px', color: '#999' }}>
+                目前沒有所有人都可以的日期
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <Slider {...settings}>
@@ -164,20 +255,51 @@ const ResultsPage = ({ onRestart }) => {
 
       <div style={styles.timeEvaluation}>
         <h4 style={styles.sectionTitle}>⏱️ 時間評估</h4>
-        {currentResult.times.map((item, index) => ( // 🔥 顯示當前滑動卡片的時間
-          <div key={index} style={styles.participantTime}>
-            <span>{item.participant}</span>
-            <strong>{item.time}</strong>
-          </div>
-        ))}
+        {gathering ? (
+          gathering.participants?.map((participant, index) => (
+            <div key={participant.id} style={styles.participantTime}>
+              <span>
+                {getTransportIcon(participant.transport_mode)} {participant.name}
+              </span>
+              <strong>計算中...</strong>
+            </div>
+          ))
+        ) : (
+          currentResult.times.map((item, index) => (
+            <div key={index} style={styles.participantTime}>
+              <span>{item.participant}</span>
+              <strong>{item.time}</strong>
+            </div>
+          ))
+        )}
       </div>
 
       <div style={styles.buttonContainer}>
-        <button style={styles.secondaryButton} onClick={onRestart}>🔄 重新計算</button>
+        <button style={styles.secondaryButton} onClick={handleRestart}>🔄 重新計算</button>
         <button style={styles.primaryButton} onClick={() => alert('結果已分享！(模擬)')}>📤 分享結果</button>
       </div>
     </div>
   );
 };
+
+function getTransportIcon(mode) {
+  const icons = {
+    '開車': '🚗',
+    '大眾運輸': '🚇',
+    '機車': '🛵',
+    '步行': '🚶',
+    '計程車/Uber': '🚕',
+  };
+  return icons[mode] || '🚶';
+}
+
+function formatDate(dateString) {
+  const date = new Date(dateString);
+  const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const weekday = weekdays[date.getDay()];
+  return `${month}/${day} (${weekday})`;
+}
 
 export default ResultsPage;
